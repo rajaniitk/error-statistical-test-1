@@ -799,6 +799,15 @@ class StatisticalTests:
                 } for col, group in zip(columns, groups)
             }
             
+            # Add detailed conclusion
+            is_significant = p_value < 0.05
+            if is_significant:
+                results['conclusion'] = f"The {test_type} test shows statistically significant differences in variances between the selected columns (p = {p_value:.4f}). This suggests that the assumption of equal variances is violated."
+                results['recommendation'] = "Consider using non-parametric tests or variance-stabilizing transformations if planning to use parametric tests."
+            else:
+                results['conclusion'] = f"The {test_type} test shows no statistically significant differences in variances between the selected columns (p = {p_value:.4f}). The assumption of equal variances is supported."
+                results['recommendation'] = "You can proceed with parametric tests that assume equal variances."
+            
             # Save analysis
             analysis = Analysis(
                 dataset_id=dataset_id,

@@ -224,7 +224,7 @@ class StatisticalTests:
             }
         }
     
-    def ttest(self, dataset_id, column, test_type='one_sample', mu=0, group_column=None):
+    def ttest(self, dataset_id, column, test_type='one_sample', mu=0, group_column=None, column1=None, column2=None):
         try:
             dataset = Dataset.query.get_or_404(dataset_id)
             df = self.data_processor.load_dataset(dataset)
@@ -288,40 +288,36 @@ class StatisticalTests:
                 })
                 
             elif test_type == 'paired':
-                if group_column is None:
-                    return {'success': False, 'error': 'Group column required for paired t-test'}
-                
-                # Assuming paired data is in same order
-                groups = df.groupby(group_column)[column].apply(lambda x: x.dropna())
-                
-                if len(groups) != 2:
-                    return {'success': False, 'error': 'Exactly two groups required for paired t-test'}
-                
-                group1, group2 = groups.iloc[0], groups.iloc[1]
-                
-                if len(group1) != len(group2):
-                    return {'success': False, 'error': 'Groups must have same size for paired t-test'}
-                
-                statistic, p_value = stats.ttest_rel(group1, group2)
-                
-                results.update({
-                    'null_hypothesis': 'Mean difference between paired observations is zero',
-                    'alternative_hypothesis': 'Mean difference between paired observations is not zero',
-                    'test_statistic': float(statistic),
-                    'p_value': float(p_value),
-                    'degrees_of_freedom': len(group1) - 1,
-                    'mean_difference': float((group1 - group2).mean()),
-                    'sample_size': len(group1),
-                    'interpretation': self.interpret_p_value(p_value, 'reject null hypothesis of no difference')
-                })
+                # For paired t-test, we need two paired columns
+                if column1 and column2 and column1 in df.columns and column2 in df.columns:
+                    clean_df = df[[column1, column2]].dropna()
+                    if len(clean_df) < 3:
+                        return {'success': False, 'error': 'Insufficient paired data for t-test'}
+                    
+                    statistic, p_value = stats.ttest_rel(clean_df[column1], clean_df[column2])
+                    
+                    results.update({
+                        'column1': column1,
+                        'column2': column2,
+                        'null_hypothesis': f'Mean difference between {column1} and {column2} is zero',
+                        'alternative_hypothesis': f'Mean difference between {column1} and {column2} is not zero',
+                        'test_statistic': float(statistic),
+                        'p_value': float(p_value),
+                        'degrees_of_freedom': len(clean_df) - 1,
+                        'mean_difference': float((clean_df[column1] - clean_df[column2]).mean()),
+                        'sample_size': len(clean_df),
+                        'interpretation': self.interpret_p_value(p_value, 'reject null hypothesis of no difference')
+                    })
+                else:
+                    return {'success': False, 'error': 'Both columns required for paired t-test'}
             
             # Save analysis
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='ttest',
-                parameters={'test_type': test_type, 'column': column, 'group_column': group_column, 'mu': mu},
-                results=results,
-                status='completed'
+                analysis_name=f'{test_type.replace("_", " ").title()} T-Test',
+                parameters={'test_type': test_type, 'column': column, 'group_column': group_column, 'mu': mu, 'column1': column1, 'column2': column2},
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -404,9 +400,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='anova',
+                analysis_name=f'{test_type.replace("_", " ").title()} ANOVA',
                 parameters={'dependent_var': dependent_var, 'independent_var': independent_var, 'test_type': test_type},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -481,9 +477,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='chi_square',
+                analysis_name=f'Chi-Square {test_type.replace("_", " ").title()} Test',
                 parameters={'column1': column1, 'column2': column2, 'test_type': test_type},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -554,9 +550,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='correlation_test',
+                analysis_name=f'{method.title()} Correlation Test',
                 parameters={'column1': column1, 'column2': column2, 'method': method},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -677,9 +673,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='normality_test',
+                analysis_name=f'{test_type.replace("_", " ").title()} Normality Test',
                 parameters={'column': column, 'test_type': test_type},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -765,9 +761,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='variance_test',
+                analysis_name=f'{test_type.title()} Variance Test',
                 parameters={'columns': columns, 'test_type': test_type},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -821,9 +817,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='mann_whitney',
+                analysis_name='Mann-Whitney U Test',
                 parameters={'column': column, 'group_column': group_column},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -903,9 +899,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='kruskal_wallis',
+                analysis_name='Kruskal-Wallis Test',
                 parameters={'dependent_var': dependent_var, 'independent_var': independent_var},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -954,9 +950,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='wilcoxon',
+                analysis_name='Wilcoxon Signed-Rank Test',
                 parameters={'column1': column1, 'column2': column2},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -1011,9 +1007,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='friedman',
+                analysis_name='Friedman Test',
                 parameters={'columns': columns},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -1077,9 +1073,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='mcnemar',
+                analysis_name='McNemar Test',
                 parameters={'column1': column1, 'column2': column2},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()
@@ -1149,9 +1145,9 @@ class StatisticalTests:
             analysis = Analysis(
                 dataset_id=dataset_id,
                 analysis_type='multiple_comparison',
+                analysis_name=f'{method.title()} Multiple Comparison Test',
                 parameters={'dependent_var': dependent_var, 'independent_var': independent_var, 'method': method},
-                results=results,
-                status='completed'
+                results=results
             )
             db.session.add(analysis)
             db.session.commit()

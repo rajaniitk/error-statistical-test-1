@@ -142,14 +142,18 @@ def t_test():
         elif test_type == 'paired':
             column1 = request.json.get('column1')
             column2 = request.json.get('column2')
-            result = service.wilcoxon(dataset_id, column1, column2)  # Use wilcoxon for paired data
+            # For paired t-test, pass the columns as special parameters
+            result = service.ttest(dataset_id, column1, 'paired', column1=column1, column2=column2)
         else:
             return jsonify({'success': False, 'error': 'Invalid test type'}), 400
         
-        return jsonify({
-            'success': True,
-            'result': result
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'result': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"T-test error: {str(e)}")
@@ -175,10 +179,13 @@ def anova_test():
         else:
             return jsonify({'success': False, 'error': f'ANOVA type {anova_type} not implemented'}), 400
         
-        return jsonify({
-            'success': True,
-            'result': result
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'result': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"ANOVA test error: {str(e)}")
@@ -201,10 +208,13 @@ def chi_square_test():
         
         result = service.chi_square(dataset_id, var1, var2, test_type)
         
-        return jsonify({
-            'success': True,
-            'result': result
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'result': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"Chi-square test error: {str(e)}")
@@ -225,11 +235,13 @@ def test_equal_variance():
         
         results = stats.variance_test(dataset_id, columns, test_type)
         
-        return jsonify({
-            'success': True,
-            'results': results['results'] if results['success'] else None,
-            'error': results.get('error')
-        })
+        if results['success']:
+            return jsonify({
+                'success': True,
+                'results': results['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': results['error']}), 400
         
     except Exception as e:
         logging.error(f"Variance test error: {str(e)}")
@@ -393,11 +405,13 @@ def mann_whitney_test():
         service = StatisticalTests()
         result = service.mann_whitney(dataset_id, column, group_column)
         
-        return jsonify({
-            'success': True,
-            'results': result['results'] if result['success'] else None,
-            'error': result.get('error')
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'results': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"Mann-Whitney test error: {str(e)}")
@@ -416,11 +430,13 @@ def wilcoxon_test():
         service = StatisticalTests()
         result = service.wilcoxon(dataset_id, column1, column2)
         
-        return jsonify({
-            'success': True,
-            'results': result['results'] if result['success'] else None,
-            'error': result.get('error')
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'results': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"Wilcoxon test error: {str(e)}")
@@ -439,11 +455,13 @@ def kruskal_wallis_test():
         service = StatisticalTests()
         result = service.kruskal_wallis(dataset_id, dependent_var, independent_var)
         
-        return jsonify({
-            'success': True,
-            'results': result['results'] if result['success'] else None,
-            'error': result.get('error')
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'results': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"Kruskal-Wallis test error: {str(e)}")
@@ -461,11 +479,13 @@ def friedman_test():
         service = StatisticalTests()
         result = service.friedman(dataset_id, columns)
         
-        return jsonify({
-            'success': True,
-            'results': result['results'] if result['success'] else None,
-            'error': result.get('error')
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'results': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"Friedman test error: {str(e)}")
@@ -484,11 +504,13 @@ def mcnemar_test():
         service = StatisticalTests()
         result = service.mcnemar(dataset_id, column1, column2)
         
-        return jsonify({
-            'success': True,
-            'results': result['results'] if result['success'] else None,
-            'error': result.get('error')
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'results': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"McNemar test error: {str(e)}")
@@ -508,12 +530,41 @@ def multiple_comparisons_test():
         service = StatisticalTests()
         result = service.multiple_comparison(dataset_id, dependent_var, independent_var, method)
         
-        return jsonify({
-            'success': True,
-            'results': result['results'] if result['success'] else None,
-            'error': result.get('error')
-        })
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'results': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
         
     except Exception as e:
         logging.error(f"Multiple comparisons test error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@statistical_tests_bp.route('/multiple_comparison', methods=['POST'])
+def multiple_comparison_test():
+    """Alias for multiple_comparisons endpoint"""
+    try:
+        dataset_id = request.json.get('dataset_id')
+        dependent = request.json.get('dependent')
+        independent = request.json.get('independent')
+        method = request.json.get('method', 'tukey')
+        
+        if not dataset_id or not dependent or not independent:
+            return jsonify({'success': False, 'error': 'Dataset ID, dependent and independent variables are required'}), 400
+        
+        service = StatisticalTests()
+        result = service.multiple_comparison(dataset_id, dependent, independent, method)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'results': result['results']
+            })
+        else:
+            return jsonify({'success': False, 'error': result['error']}), 400
+        
+    except Exception as e:
+        logging.error(f"Multiple comparison test error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500

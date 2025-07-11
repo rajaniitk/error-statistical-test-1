@@ -232,6 +232,12 @@ class StatisticalTests:
             if column not in df.columns:
                 return {'success': False, 'error': f'Column {column} not found'}
             
+            # Ensure column is numeric
+            try:
+                df[column] = pd.to_numeric(df[column], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert column "{column}" to numeric data'}
+            
             data = df[column].dropna()
             
             if len(data) < 3:
@@ -336,6 +342,12 @@ class StatisticalTests:
             if dependent_var not in df.columns or independent_var not in df.columns:
                 return {'success': False, 'error': 'Required columns not found'}
             
+            # Ensure dependent variable is numeric
+            try:
+                df[dependent_var] = pd.to_numeric(df[dependent_var], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert dependent variable "{dependent_var}" to numeric data'}
+            
             # Remove missing values
             clean_df = df[[dependent_var, independent_var]].dropna()
             
@@ -392,6 +404,10 @@ class StatisticalTests:
                         }
                     except:
                         pass
+            
+            elif test_type == 'two_way':
+                # Two-way ANOVA (for now, just inform user it's not fully implemented)
+                return {'success': False, 'error': 'Two-way ANOVA not yet implemented. Please use one-way ANOVA for now.'}
             
             else:
                 return {'success': False, 'error': f'Test type {test_type} not implemented'}
@@ -504,7 +520,21 @@ class StatisticalTests:
             if len(clean_data) < 3:
                 return {'success': False, 'error': 'Insufficient data for correlation test'}
             
-            x, y = clean_data[column1], clean_data[column2]
+            # Ensure columns are numeric
+            try:
+                x = pd.to_numeric(clean_data[column1], errors='coerce')
+                y = pd.to_numeric(clean_data[column2], errors='coerce')
+                
+                # Remove any NaN values that resulted from conversion
+                mask = ~(pd.isna(x) | pd.isna(y))
+                x = x[mask]
+                y = y[mask]
+                
+                if len(x) < 3:
+                    return {'success': False, 'error': f'Insufficient numeric data for correlation test. Columns "{column1}" and "{column2}" may contain non-numeric values.'}
+                    
+            except Exception:
+                return {'success': False, 'error': f'Cannot convert columns "{column1}" and "{column2}" to numeric data'}
             
             if method == 'pearson':
                 correlation, p_value = stats.pearsonr(x, y)
@@ -523,12 +553,12 @@ class StatisticalTests:
             
             # Calculate confidence interval for Pearson
             confidence_interval = None
-            if method == 'pearson' and len(clean_data) > 3:
+            if method == 'pearson' and len(x) > 3:
                 z = np.arctanh(correlation)
-                se = 1 / np.sqrt(len(clean_data) - 3)
+                se = 1 / np.sqrt(len(x) - 3)
                 z_lower = z - 1.96 * se
                 z_upper = z + 1.96 * se
-                confidence_interval = [np.tanh(z_lower), np.tanh(z_upper)]
+                confidence_interval = [float(np.tanh(z_lower)), float(np.tanh(z_upper))]
             
             results = {
                 'test_name': test_name,
@@ -539,7 +569,7 @@ class StatisticalTests:
                 'alternative_hypothesis': f'Significant {method} correlation between {column1} and {column2}',
                 'correlation_coefficient': float(correlation),
                 'p_value': float(p_value),
-                'sample_size': len(clean_data),
+                'sample_size': len(x),
                 'assumptions': assumptions,
                 'confidence_interval_95': confidence_interval,
                 'effect_size': self.interpret_correlation_strength(abs(correlation)),
@@ -571,10 +601,15 @@ class StatisticalTests:
             if column not in df.columns:
                 return {'success': False, 'error': f'Column {column} not found'}
             
-            data = df[column].dropna()
-            
-            if len(data) < 3:
-                return {'success': False, 'error': 'Insufficient data for normality test'}
+            # Ensure column is numeric
+            try:
+                data = pd.to_numeric(df[column], errors='coerce').dropna()
+                
+                if len(data) < 3:
+                    return {'success': False, 'error': f'Insufficient numeric data for normality test. Column "{column}" may contain non-numeric values.'}
+                    
+            except Exception:
+                return {'success': False, 'error': f'Cannot convert column "{column}" to numeric data'}
             
             results = {'test_type': test_type, 'column': column}
             
@@ -622,7 +657,7 @@ class StatisticalTests:
                     'test_statistic': float(result.statistic),
                     'critical_values': result.critical_values.tolist(),
                     'significance_levels': result.significance_level.tolist(),
-                    'is_normal_5_percent': is_normal,
+                    'is_normal_5_percent': bool(is_normal),  # Convert numpy bool to Python bool
                     'sample_size': len(data),
                     'interpretation': 'Normal distribution' if is_normal else 'Not normally distributed'
                 })
@@ -696,6 +731,13 @@ class StatisticalTests:
             
             if len(columns) < 2:
                 return {'success': False, 'error': 'At least 2 columns required for variance test'}
+            
+            # Ensure all columns are numeric
+            try:
+                for col in columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert all columns to numeric data'}
             
             # Get data for each column
             groups = [df[col].dropna() for col in columns]
@@ -782,6 +824,12 @@ class StatisticalTests:
             if column not in df.columns or group_column not in df.columns:
                 return {'success': False, 'error': 'Required columns not found'}
             
+            # Ensure data column is numeric
+            try:
+                df[column] = pd.to_numeric(df[column], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert column "{column}" to numeric data'}
+            
             groups = df.groupby(group_column)[column].apply(lambda x: x.dropna())
             
             if len(groups) != 2:
@@ -789,6 +837,10 @@ class StatisticalTests:
             
             group1, group2 = groups.iloc[0], groups.iloc[1]
             group_names = list(groups.index)
+            
+            # Check if groups have enough data
+            if len(group1) < 3 or len(group2) < 3:
+                return {'success': False, 'error': 'Each group must have at least 3 observations for Mann-Whitney U test'}
             
             statistic, p_value = stats.mannwhitneyu(group1, group2, alternative='two-sided')
             
@@ -837,6 +889,12 @@ class StatisticalTests:
             
             if dependent_var not in df.columns or independent_var not in df.columns:
                 return {'success': False, 'error': 'Required columns not found'}
+            
+            # Ensure dependent variable is numeric
+            try:
+                df[dependent_var] = pd.to_numeric(df[dependent_var], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert column "{dependent_var}" to numeric data'}
             
             clean_df = df[[dependent_var, independent_var]].dropna()
             groups = clean_df.groupby(independent_var)[dependent_var].apply(list)
@@ -920,6 +978,13 @@ class StatisticalTests:
             if column1 not in df.columns or column2 not in df.columns:
                 return {'success': False, 'error': 'Required columns not found'}
             
+            # Ensure columns are numeric
+            try:
+                df[column1] = pd.to_numeric(df[column1], errors='coerce')
+                df[column2] = pd.to_numeric(df[column2], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert columns "{column1}" and "{column2}" to numeric data'}
+            
             # Remove missing values
             clean_df = df[[column1, column2]].dropna()
             
@@ -973,6 +1038,13 @@ class StatisticalTests:
             
             if len(columns) < 3:
                 return {'success': False, 'error': 'At least 3 columns required for Friedman test'}
+            
+            # Ensure all columns are numeric
+            try:
+                for col in columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert all columns to numeric data'}
             
             # Remove rows with any missing values
             clean_df = df[columns].dropna()
@@ -1094,6 +1166,12 @@ class StatisticalTests:
             if dependent_var not in df.columns or independent_var not in df.columns:
                 return {'success': False, 'error': 'Required columns not found'}
             
+            # Ensure dependent variable is numeric
+            try:
+                df[dependent_var] = pd.to_numeric(df[dependent_var], errors='coerce')
+            except:
+                return {'success': False, 'error': f'Cannot convert dependent variable "{dependent_var}" to numeric data'}
+            
             clean_df = df[[dependent_var, independent_var]].dropna()
             
             if len(clean_df) < 10:
@@ -1122,8 +1200,8 @@ class StatisticalTests:
                         'summary': str(tukey_results),
                         'group_comparisons': [
                             {
-                                'group1': tukey_results.groupsunique[i],
-                                'group2': tukey_results.groupsunique[j],
+                                'group1': str(tukey_results.groupsunique[i]),
+                                'group2': str(tukey_results.groupsunique[j]),
                                 'mean_diff': float(tukey_results.meandiffs[idx]),
                                 'p_value': float(tukey_results.pvalues[idx]),
                                 'reject': bool(tukey_results.reject[idx]),

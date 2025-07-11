@@ -70,6 +70,23 @@ class DataProcessor:
     
     def parse_file(self, file_path, filename):
         try:
+            # Normalize file path for cross-platform compatibility
+            file_path = file_path.replace('\\', '/')
+            
+            # Check if file exists, if not try alternatives
+            if not os.path.exists(file_path):
+                # Try relative path
+                alt_path = os.path.join('uploads', filename)
+                if os.path.exists(alt_path):
+                    file_path = alt_path
+                else:
+                    # Try without uploads directory
+                    if os.path.exists(filename):
+                        file_path = filename
+                    else:
+                        logging.error(f"File not found: {file_path}, alternatives: {alt_path}, {filename}")
+                        return None
+            
             file_ext = filename.rsplit('.', 1)[1].lower()
             
             if file_ext == 'csv':

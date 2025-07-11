@@ -636,11 +636,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     async function runANOVA() {
         const dependent = document.getElementById('anova-dependent').value;
-        const independent = Array.from(document.getElementById('anova-independent').selectedOptions)
-            .map(option => option.value);
+        const independent = document.getElementById('anova-independent').value;
         const anovaType = document.getElementById('anova-type').value;
         
-        if (!dependent || independent.length === 0) {
+        if (!dependent || !independent) {
             showError('Please select dependent and independent variables');
             return;
         }
@@ -657,7 +656,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     dataset_id: currentDatasetId,
                     dependent: dependent,
-                    independent: independent,
+                    independent: [independent],  // Convert to array for backend compatibility
                     anova_type: anovaType
                 })
             });
@@ -702,7 +701,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="test-result ${isSignificant ? 'significant' : 'not-significant'}">
                 <h4>${anovaType.replace('_', '-').toUpperCase()} ANOVA Results</h4>
                 <p><strong>Dependent Variable:</strong> ${dependent}</p>
-                <p><strong>Independent Variables:</strong> ${independent.join(', ')}</p>
+                <p><strong>Independent Variable:</strong> ${independent}</p>
                 <div class="result-stats">
                     <div class="stat-item">
                         <strong>F-statistic:</strong> ${safeFormat(result.f_statistic)}
